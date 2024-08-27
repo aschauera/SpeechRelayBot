@@ -12,7 +12,7 @@ $webAppEndoint=echo https://$webAppName.azurewebsites.net/api/messages
 ##Create speech services
 az group create --location westeurope --name $ressourceGroup
 az cognitiveservices account create -n $cognitiveServiceAccountName -g $ressourceGroup --kind SpeechServices --sku F0 -l $location --yes
-az cognitiveservices account keys list -n $cognitiveServiceAccountName -g $ressourceGroup
+az cognitiveservices account keys list -n $cognitiveServiceAccountName -g $ressourceGroup 
 
 ##Create app plan and web app
 az appservice plan create -g $ressourceGroup -n $appServiceName --sku F1 --location $location
