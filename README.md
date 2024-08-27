@@ -1,4 +1,4 @@
-﻿# Copilot Studio Speech Bot
+# Copilot Studio Speech Bot
 
 Sample of connecting Bot Framework v4 bot to a Copilot Studio bot. The goal of this sample is to have a Speech Enabled Copilot Studio bot
 published on a DirectLine Speech Channel.
@@ -28,22 +28,72 @@ This bot has been created based on [Bot Framework](https://dev.botframework.com)
 
 
 ## Setup
+### Setup required resources in Microsoft Azure
+
+The following sets up Azure Cognitive Services for speech as well as an App Service plan, a web app and an Azure Bot.
+
+- Deploy Azure resources
+
+    ```powershell
+    # Assign values to variables
+    $ressourceGroup="CopilotSpeechSample"
+    $location="westeurope"
+    $appServiceName="CopilotSpeechBotAppPlan"
+    $webAppName="CopilotSpeechBotWebApp"
+    $cognitiveServiceAccountName="CopilotSpeechBotAIService"
+    $botName="CopilotSpeechBot"
+    $appRegistrationName="CopilotSpeechBotPrincipal"
+    $tenantId="<tenantID>"
+    $webAppEndoint=echo https://$webAppName.azurewebsites.net/api/messages
+
+    ##Create speech services
+    az group create --location westeurope --name $ressourceGroup
+    az cognitiveservices account create -n $cognitiveServiceAccountName -g $ressourceGroup --kind SpeechServices --sku F0 -l $location --yes
+    $cognitiveServicesKey=$(az cognitiveservices account keys list -n $cognitiveServiceAccountName -g $ressourceGroup --query "key1")
+
+    ##Create app plan and web app
+    az appservice plan create -g $ressourceGroup -n $appServiceName --sku F1 --location $location
+    az webapp create -g $ressourceGroup -n $webAppName -p $appServiceName
+
+    #Enable web sockets on the app
+    az webapp config set -g $ressourceGroup -n $webAppName --web-sockets-enabled true
+    #Create entry app registration and bot
+    $appId = $(az ad app create --display-name $appRegistrationName --query "appId")
+    ## Create the Azure BotFX bot
+    az bot create -g $ressourceGroup -n $botName --app-type SingleTenant --appid $appId --tenant-id $tenantId
+    #Set bot endpoint to web app path
+    az bot update -g $ressourceGroup -n $botName --endpoint $webAppEndoint
+    ```
+- Enable DirectLine Speech
+
+  - In [Azure Portal](https://portal.azure.com) go to your bot resource you created ***Settings*** > ***Channels*** > ***Available Channels*** > ***Direct Line Speech***. Select the Cognitive Service resource created earlier and leave the optional fields blank and save.
+  - In your bot resource go to  ***Settings*** > ***Configuration*** and check **Enable Streaming Endpoint**
+
 
 ### Compile the bot
 
 - Clone the repository
 
     ```bash
-    git clone https://github.com/microsoft/xxx.git
+    #Clone Echo bot sample
+    git clone https://github.com/aschauera/SpeechRelayBot.git
     ```
 
 - In a terminal, navigate to `SpeechRelayBot/`
 - Update the file `appsettings.json` with your Copilot Studio bot id, tenant id, bot name and other settings.
     
+    If you used the deployment from step 1 the MicrosoftAppId is already available in the variable $appId. Alternatively this can be found 
+    in Azure Portal <Your bot resource> navigate to ***Settings*** then ***Configuration*** and copy the Microsoft App ID and Tenant ID.
+    The MicrosoftAppPassword can be found by clicking on ***Manage Password*** and ***Certificates & Secrets***. Create a new secret and copy its value.
+    ```  
+    "MicrosoftAppId": "aaa",
+    "MicrosoftAppPassword": "bbb",
+    "MicrosoftAppTenantId":"ccc",
+    ```
     To retrieve your Copilot Studio bot's token endpoint, click on left side pane's ***Manage***, click ***Channels*** and click on the Direct Line Speech channel.
     Copy and save the token endpoint value by clicking Copy.
 
-    To retrieve your tenant ID, use the following command in a terminal connected with PAC CLI
+    To retrieve your tenant ID use the value from above. You can also use the following command in a terminal connected with PAC CLI
 
     ```bash
     pac auth who
@@ -63,20 +113,44 @@ This bot has been created based on [Bot Framework](https://dev.botframework.com)
       "TokenEndPoint": "<Token endpoint copied from channel panel>"
     }
    ``` 
-    
+   The complete `appsettings.json` file in your root directory should resemble the following: 
+   
+   ```bash
+    {
+      "MicrosoftAppType":"SingleTenant",
+      "MicrosoftAppId": "aaa",
+      "MicrosoftAppPassword": "bbb",
+      "MicrosoftAppTenantId":"ccc",
+      "BotService": {
+        "BotName": "<name>",
+        "BotId": "xxx",
+        "TenantId": "yyy",
+        "TokenEndPoint": "zzz"
+      },
+      "ConversationPool": {
+        "TokenRefreshCheckIntervalInMinute": 10,
+        "TokenRefreshIntervalInMinute": 30,
+        "ConversationEndAfterIdleTimeInMinute": 30,
+        "ConversationEndCheckIntervalInMinute": 10
+      }
+    }
+   ```
 
-- Build the bot and prepare it for deployment.
+- Build the bot prepare it and deploy.
 
   ```bash
-  # Build
-  dotnet build -c release 
-  # Prepare
-  az bot prepare-deploy --lang CSharp --code-dir . --proj-file-path .\EchoBot.csproj
-  Compress-Archive * .\CopilotSpeechBot.zip -force
+    #Build
+    dotnet build -c release .\SampleBot.csproj
+    #Prepare
+    if(Test-Path .deployment){
+        Remove-Item -Force .deployment
+        Remove-Item -Force CopilotSpeechBot.zip
+    }
+    az bot prepare-deploy --lang CSharp --code-dir . --proj-file-path .\SampleBot.csproj
+    Compress-Archive * .\CopilotSpeechBot.zip -force
+    #Deploy
+    az webapp deployment source config-zip --resource-group $ressourceGroup --name $webAppName --src .\CopilotSpeechBot.zip
   ```
-### Setup required resources in Microsoft Azure
-
-The following sets up Azure Cognitive Services for speech as well as an App Service plan, a web app and an Azure Bot.
 
 ## Testing the bot using Bot Framework Emulator
 
@@ -88,11 +162,18 @@ The following sets up Azure Cognitive Services for speech as well as an App Serv
 
 - Launch Bot Framework Emulator
 - File -> Open Bot
-- Enter a Bot URL of `http://localhost:3978/api/messages`
+- Enter a Bot URL of [http://localhost:3978/api/messages](http://localhost:3978/api/messages)
 
-## Deploy the bot to Azure
+## Testing the voice channel
 
-To learn more about deploying a bot to Azure, see [Deploy your bot to Azure](https://aka.ms/azuredeployment) for a complete list of deployment instructions.
+[Windows Voice Assistant Client](https://github.com/Azure-Samples/Cognitive-Services-Voice-Assistant/blob/main/clients/csharp-wpf/README.md#windows-voice-assistant-client) is a desktop application that allows testing of Direct Line Speech enabled bot endpoints
+- Install the Voice Assistant Client
+
+### Connect to your bot
+
+- Launch voice assistant client
+- Follow the [instructions on the Voice Assistant page](https://github.com/Azure-Samples/Cognitive-Services-Voice-Assistant/blob/main/clients/csharp-wpf/README.md#windows-voice-assistant-client)  to connect to your speech services resource 
+
 
 ## Further reading
 
