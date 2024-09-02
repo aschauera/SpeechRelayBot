@@ -30,7 +30,8 @@ This bot has been created based on [Bot Framework](https://dev.botframework.com)
 ## Setup
 ### Setup required resources in Microsoft Azure
 
-The following sets up Azure Cognitive Services for speech as well as an App Service plan, a web app and an Azure Bot.
+The following sets up Azure Cognitive Services for speech as well as an App Service plan, a web app and an Azure Bot. Found in
+[AZ CLI deployment scrapbook](CopilotSpeechBot_ResourceDeployment.azcli)
 
 - Deploy Azure resources
 
@@ -45,6 +46,11 @@ The following sets up Azure Cognitive Services for speech as well as an App Serv
     $appRegistrationName="CopilotSpeechBotPrincipal"
     $tenantId="<tenantID>"
     $webAppEndoint=echo https://$webAppName.azurewebsites.net/api/messages
+    ##Make sure to use the right subscription
+    $subscriptionId=<ID from az account set output>
+    ##Connect to Azure subscroption
+    az login
+    az account set --subscription $subscriptionId
 
     ##Create speech services
     az group create --location westeurope --name $ressourceGroup
